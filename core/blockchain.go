@@ -240,7 +240,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	if cacheConfig == nil {
 		cacheConfig = defaultCacheConfig
 	}
-
 	// Open trie database with provided config
 	// NOTE(chokobole): Zktrie will be set inside SetupGenesisBlockWithOverride().
 	triedb := trie.NewDatabaseWithConfig(db, &trie.Config{
