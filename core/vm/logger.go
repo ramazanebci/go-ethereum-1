@@ -199,7 +199,7 @@ type StructLogger struct {
 	gasLimit uint64
 	usedGas  uint64
 
-	interrupt uint32 // Atomic flag to signal execution interruption
+	interrupt atomic.Bool // Atomic flag to signal execution interruption
 	reason    error  // Textual reason for the interruption
 }
 
@@ -258,7 +258,7 @@ func (l *StructLogger) CaptureStart(env *EVM, from common.Address, to common.Add
 // CaptureState also tracks SLOAD/SSTORE ops to track storage change.
 func (l *StructLogger) CaptureState(pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, rData []byte, depth int, opErr error) {
 	// If tracing was interrupted, set the error and stop
-	if atomic.LoadUint32(&l.interrupt) > 0 {
+	if l.interrupt.Load() {
 		l.env.Cancel()
 		return
 	}
@@ -464,7 +464,7 @@ func (l *StructLogger) GetResult() (json.RawMessage, error) {
 // Stop terminates execution of the tracer at the first opportune moment.
 func (l *StructLogger) Stop(err error) {
 	l.reason = err
-	atomic.StoreUint32(&l.interrupt, 1)
+	l.interrupt.Store(true)
 }
 
 func (l *StructLogger) CaptureTxStart(gasLimit uint64) {
