@@ -78,6 +78,11 @@ func (t *ZkTrie) Get(key []byte) []byte {
 	return res
 }
 
+func (t *ZkTrie) TryGetStorage(_ common.Address, key []byte) ([]byte, error) {
+	sanityCheckByte32Key(key)
+	return t.TryGet(key)
+}
+
 // [Scroll: START]
 // NOTE(chokobole): This part is different from scroll
 // TryUpdateAccount will abstract the write of an account to the
@@ -109,12 +114,23 @@ func (t *ZkTrie) TryUpdate(key, value []byte) error {
 	return t.ZkTrie.TryUpdate(key, 1, []zkt.Byte32{*zkt.NewByte32FromBytes(value)})
 }
 
+func (t *ZkTrie) TryUpdateStorage(_ common.Address, key, value []byte) error {
+	sanityCheckByte32Key(key)
+	return t.ZkTrie.TryUpdate(key, 1, []zkt.Byte32{*zkt.NewByte32FromBytes(value)})
+}
+
 // Delete removes any existing value for key from the trie.
 func (t *ZkTrie) Delete(key []byte) {
 	sanityCheckByte32Key(key)
 	if err := t.TryDelete(key); err != nil {
 		log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
 	}
+}
+
+// Delete removes any existing value for key from the trie.
+func (t *ZkTrie) TryDeleteStorage(_ common.Address, key []byte) error {
+	sanityCheckByte32Key(key)
+	return t.TryDelete(key)
 }
 
 // GetKey returns the preimage of a hashed key that was
