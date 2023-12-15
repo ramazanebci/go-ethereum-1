@@ -58,6 +58,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
 		OverrideKroma           *bool
+		OverrideOptimismCanyon  *uint64 `toml:",omitempty"`
 		MPTWitness              int
 		CircuitParams           *params.CircuitParams
 	}
@@ -102,6 +103,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.OverrideCancun = c.OverrideCancun
 	enc.OverrideVerkle = c.OverrideVerkle
 	enc.OverrideKroma = c.OverrideKroma
+	enc.OverrideOptimismCanyon = c.OverrideOptimismCanyon
 	enc.MPTWitness = c.MPTWitness
 	enc.CircuitParams = c.CircuitParams
 	return &enc, nil
@@ -150,6 +152,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
 		OverrideKroma           *bool
+		OverrideOptimismCanyon  *uint64 `toml:",omitempty"`
 		MPTWitness              *int
 		CircuitParams           *params.CircuitParams
 	}
@@ -276,6 +279,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.OverrideKroma != nil {
 		c.OverrideKroma = dec.OverrideKroma
+	}
+	if dec.OverrideOptimismCanyon != nil {
+		c.OverrideOptimismCanyon = dec.OverrideOptimismCanyon
 	}
 	if dec.MPTWitness != nil {
 		c.MPTWitness = *dec.MPTWitness

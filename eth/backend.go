@@ -76,6 +76,10 @@ type Ethereum struct {
 	snapDialCandidates enode.Iterator
 	merger             *consensus.Merger
 
+	// [kroma unsupported]
+	// seqRPCService        *rpc.Client
+	// historicalRPCService *rpc.Client
+
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
 
@@ -135,8 +139,12 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	scheme, err := rawdb.ParseStateScheme(config.StateScheme, chainDb)
+	if err != nil {
+		return nil, err
+	}
 	// Try to recover offline state pruning only in hash-based.
-	if config.StateScheme == rawdb.HashScheme {
+	if scheme == rawdb.HashScheme {
 		if err := pruner.RecoverPruning(stack.ResolvePath(""), chainDb); err != nil {
 			log.Error("Failed to recover state", "error", err)
 		}
@@ -196,7 +204,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			SnapshotLimit:       config.SnapshotCache,
 			Preimages:           config.Preimages,
 			StateHistory:        config.StateHistory,
-			StateScheme:         config.StateScheme,
+			StateScheme:         scheme,
 			// [Scroll: START]
 			MPTWitness: config.MPTWitness,
 			// [Scroll: END]
@@ -214,12 +222,17 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if config.OverrideKroma != nil {
 		overrides.OverrideKroma = config.OverrideKroma
 	}
+	if config.OverrideOptimismCanyon != nil {
+		overrides.OverrideOptimismCanyon = config.OverrideOptimismCanyon
+	}
 	if config.CircuitParams != nil && config.CircuitParams.MaxTxs != nil {
 		overrides.CircuitParams.MaxTxs = config.CircuitParams.MaxTxs
 	}
 	if config.CircuitParams != nil && config.CircuitParams.MaxCalldata != nil {
 		overrides.CircuitParams.MaxCalldata = config.CircuitParams.MaxCalldata
 	}
+	// [kroma unsupported]
+	// overrides.ApplySuperchainUpgrades = config.ApplySuperchainUpgrades
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, config.Genesis, &overrides, eth.engine, vmConfig, eth.shouldPreserve, &config.TransactionHistory)
 	if err != nil {
 		return nil, err
@@ -230,7 +243,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	log.Info("Initialising Ethereum protocol", "network", config.NetworkId, "dbversion", dbVer)
 
-	if eth.blockchain.Config().Kroma != nil {
+	if eth.blockchain.Config().Kroma != nil { // Optimism Bedrock depends on Merge functionality
 		eth.merger.FinalizePoS()
 	}
 
@@ -262,6 +275,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		BloomCache:     uint64(cacheLimit),
 		EventMux:       eth.eventMux,
 		RequiredBlocks: config.RequiredBlocks,
+		// [kroma unsupported]
+		// NoTxGossip:     config.RollupDisableTxPoolGossip,
 	}); err != nil {
 		return nil, err
 	}
@@ -289,6 +304,27 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// [kroma unsupported]
+	// if config.RollupSequencerHTTP != "" {
+	// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// 	client, err := rpc.DialContext(ctx, config.RollupSequencerHTTP)
+	// 	cancel()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	eth.seqRPCService = client
+	// }
+	//
+	// if config.RollupHistoricalRPC != "" {
+	// 	ctx, cancel := context.WithTimeout(context.Background(), config.RollupHistoricalRPCTimeout)
+	// 	client, err := rpc.DialContext(ctx, config.RollupHistoricalRPC)
+	// 	cancel()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	eth.historicalRPCService = client
+	// }
 
 	// Start the RPC service
 	eth.netRPCService = ethapi.NewNetAPI(eth.p2pServer, config.NetworkId)
@@ -412,7 +448,7 @@ func (s *Ethereum) shouldPreserve(header *types.Header) bool {
 	// r5   A      [X] F G
 	// r6    [X]
 	//
-	// In the round5, the inturn signer E is offline, so the worst case
+	// In the round5, the in-turn signer E is offline, so the worst case
 	// is A, F and G sign the block of round5 and reject the block of opponents
 	// and in the round6, the last available signer B is offline, the whole
 	// network is stuck.
@@ -499,7 +535,7 @@ func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
 func (s *Ethereum) IsListening() bool                  { return true } // Always listening
 func (s *Ethereum) Downloader() *downloader.Downloader { return s.handler.downloader }
-func (s *Ethereum) Synced() bool                       { return s.handler.acceptTxs.Load() }
+func (s *Ethereum) Synced() bool                       { return s.handler.synced.Load() }
 func (s *Ethereum) SetSynced()                         { s.handler.enableSyncedFeatures() }
 func (s *Ethereum) ArchiveMode() bool                  { return s.config.NoPruning }
 func (s *Ethereum) BloomIndexer() *core.ChainIndexer   { return s.bloomIndexer }
@@ -558,6 +594,13 @@ func (s *Ethereum) Stop() error {
 	s.miner.Close()
 	s.blockchain.Stop()
 	s.engine.Close()
+	// [kroma unsupported]
+	// if s.seqRPCService != nil {
+	// 	s.seqRPCService.Close()
+	// }
+	// if s.historicalRPCService != nil {
+	// 	s.historicalRPCService.Close()
+	// }
 
 	// Clean shutdown marker as the last thing before closing db
 	s.shutdownTracker.Stop()
@@ -568,4 +611,33 @@ func (s *Ethereum) Stop() error {
 	return nil
 }
 
-// [kroma unsupported] HandleRequiredProtocolVersion
+// [kroma unsupported]
+// HandleRequiredProtocolVersion handles the protocol version signal. This implements opt-in halting,
+// the protocol version data is already logged and metered when signaled through the Engine API.
+// func (s *Ethereum) HandleRequiredProtocolVersion(required params.ProtocolVersion) error {
+// 	var needLevel int
+// 	switch s.config.RollupHaltOnIncompatibleProtocolVersion {
+// 	case "major":
+// 		needLevel = 3
+// 	case "minor":
+// 		needLevel = 2
+// 	case "patch":
+// 		needLevel = 1
+// 	default:
+// 		return nil // do not consider halting if not configured to
+// 	}
+// 	haveLevel := 0
+// 	switch params.OPStackSupport.Compare(required) {
+// 	case params.OutdatedMajor:
+// 		haveLevel = 3
+// 	case params.OutdatedMinor:
+// 		haveLevel = 2
+// 	case params.OutdatedPatch:
+// 		haveLevel = 1
+// 	}
+// 	if haveLevel >= needLevel { // halt if we opted in to do so at this granularity
+// 		log.Error("Opted to halt, unprepared for protocol change", "required", required, "local", params.OPStackSupport)
+// 		return s.nodeCloser()
+// 	}
+// 	return nil
+// }
