@@ -5,8 +5,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestTransactionUnmarshalJsonDeposit(t *testing.T) {
@@ -53,6 +54,17 @@ func TestTransactionUnmarshalJsonDepositWithNonce(t *testing.T) {
 	require.Equal(t, uint8(0x7e), got.Type())
 	require.Equal(t, uint64(0xf4240), got.Gas())
 	require.Equal(t, common.HexToHash("0x1234"), got.SourceHash())
+}
+
+func TestTransactionUnmarshalJsonMintToken(t *testing.T) {
+	tx := NewTx(&MintTokenTx{})
+	json, err := tx.MarshalJSON()
+	require.NoError(t, err, "Failed to marshal tx JSON")
+
+	got := &Transaction{}
+	err = got.UnmarshalJSON(json)
+	require.NoError(t, err, "Failed to unmarshal tx JSON")
+	require.Equal(t, tx.Hash(), got.Hash())
 }
 
 func TestTransactionUnmarshalJSON(t *testing.T) {
