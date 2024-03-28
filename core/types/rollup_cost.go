@@ -50,7 +50,7 @@ func init() {
 var (
 	// BedrockL1AttributesSelector is the function selector indicating Bedrock style L1 gas
 	// attributes.
-	BedrockL1AttributesSelector = []byte{0x01, 0x5d, 0x8e, 0xb9}
+	BedrockL1AttributesSelector = []byte{0xef, 0xc6, 0x74, 0xeb}
 	// EcotoneL1AttributesSelector is the selector indicating Ecotone style L1 gas attributes.
 	EcotoneL1AttributesSelector = []byte{0x44, 0x0a, 0x5e, 0x20}
 
