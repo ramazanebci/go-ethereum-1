@@ -356,6 +356,9 @@ type ChainConfig struct {
 	Ethash *EthashConfig `json:"ethash,omitempty"`
 	Clique *CliqueConfig `json:"clique,omitempty"`
 
+	// Optimism config, nil if not active
+	Optimism *OptimismConfig `json:"kroma,omitempty"`
+
 	// Kroma config, nil if not active
 	Kroma *KromaConfig `json:"kroma,omitempty"`
 
@@ -388,6 +391,18 @@ type CliqueConfig struct {
 // String implements the stringer interface, returning the consensus engine details.
 func (c *CliqueConfig) String() string {
 	return "clique"
+}
+
+// OptimismConfig is the optimism config.
+type OptimismConfig struct {
+	EIP1559Elasticity        uint64 `json:"eip1559Elasticity"`
+	EIP1559Denominator       uint64 `json:"eip1559Denominator"`
+	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
+}
+
+// String implements the stringer interface, returning the optimism fee config details.
+func (o *OptimismConfig) String() string {
+	return "optimism"
 }
 
 // KromaConfig is the kroma config.
