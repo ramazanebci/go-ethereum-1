@@ -85,7 +85,6 @@ func (m *migrator) migrateAccount() *migrationRoot {
 		}
 		status.emitLog(false, "account ", address.Hex(), "index", common.BytesToHash(it.LeafKey()).Hex())
 	}
-	m.checkHashCollision(mpt)
 	status.startDBCommit()
 	root := m.commit(mpt)
 	status.emitCompleteLog("account ")
@@ -118,26 +117,8 @@ func (m *migrator) migrateStorage(
 		must(mpt.UpdateStorage(common.Address{}, slot, encodeToRlp(it.LeafBlob())))
 		status.emitLog(false, "contract", address.Hex(), "index", common.BytesToHash(it.LeafKey()).Hex())
 	}
-	m.checkHashCollision(mpt)
 	status.startDBCommit()
 	return m.commit(mpt)
-}
-
-func (m *migrator) checkHashCollision(t *trie.StateTrie) {
-	for it := t.MustNodeIterator(nil); it.Next(true); {
-		if !it.Leaf() {
-			continue
-		}
-		// 혹시라도 keccakhash 가 poseidon 와 충돌하는 경우, 그냥 write 할 경우 데이터 소실이 발생함.
-		// 만약 충돌이 발생하면 그 때 해결책을 찾아볼것...
-		data, _ := m.db.Get(it.Hash().Bytes())
-		if len(data) == 0 {
-			continue
-		}
-		if node, err := zk.NewTreeNodeFromBlob(data); err == nil {
-			panic(fmt.Sprintf("Hash collision detected: %v %v", it.Hash().Hex(), node))
-		}
-	}
 }
 
 func (m *migrator) readPreimage(key []byte) ([]byte, error) {
@@ -221,11 +202,21 @@ func encodeToRlp(bytes []byte) []byte {
 
 func (m *migrator) commit(mpt *trie.StateTrie) common.Hash {
 	root, set := must2(mpt.Commit(true))
+	set.ForEachWithOrder(func(path string, n *trienode.Node) {
+		// 혹시라도 keccakhash 가 poseidon 와 충돌하는 경우, 그냥 write 할 경우 데이터 소실이 발생함.
+		// 만약 충돌이 발생하면 그 때 해결책을 찾아볼것...
+		data, _ := m.db.Get(n.Hash.Bytes())
+		if len(data) == 0 {
+			return
+		}
+		if node, err := zk.NewTreeNodeFromBlob(data); err == nil {
+			panic(fmt.Sprintf("Hash collision detected: %v %v", n.Hash.Hex(), node))
+		}
+	})
 	must(m.mptdb.Update(root, types.EmptyRootHash, 0, trienode.NewWithNodeSet(set), nil))
 	must(m.mptdb.Commit(root, false))
 	return root
 }
-
 type migrationRoot struct {
 	Hash   common.Hash `json:"hash"`
 	Number uint64      `json:"number"`
