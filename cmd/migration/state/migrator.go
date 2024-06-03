@@ -86,7 +86,7 @@ func (m *migrator) migrateAccount() *migrationRoot {
 		status.emitLog(false, "account ", address.Hex(), "index", common.BytesToHash(it.LeafKey()).Hex())
 	}
 	status.startDBCommit()
-	root := m.commit(mpt)
+	root := m.commit(mpt, types.EmptyRootHash)
 	status.emitCompleteLog("account ")
 	fmt.Println("state root", root.Hex(), "block number", header.Number)
 	return &migrationRoot{root, header.Number.Uint64()}
@@ -118,7 +118,7 @@ func (m *migrator) migrateStorage(
 		status.emitLog(false, "contract", address.Hex(), "index", common.BytesToHash(it.LeafKey()).Hex())
 	}
 	status.startDBCommit()
-	return m.commit(mpt)
+	return m.commit(mpt, types.EmptyRootHash)
 }
 
 func (m *migrator) readPreimage(key []byte) ([]byte, error) {
@@ -155,7 +155,7 @@ func (m *migrator) applyNewStateTransition(root migrationRoot) *migrationRoot {
 	m.blockChain.debug_traceBlockByNumber(root.Number, func(address common.Address, state map[string]any) {
 		must(mpt.UpdateAccount(address, m.updateAccount(address, must1(mpt.GetAccount(address)), state, root.Hash)))
 	})
-	root.Hash = m.commit(mpt)
+	root.Hash = m.commit(mpt, root.Hash)
 	root.Number += 1
 	return &root
 }
@@ -185,7 +185,7 @@ func (m *migrator) updateAccount(address common.Address, account *types.StateAcc
 		for key, value := range storage.(map[string]any) {
 			must(mpt.UpdateStorage(common.Address{}, common.HexToHash(key).Bytes(), encodeToRlp([]byte(value.(string)))))
 		}
-		account.Root = m.commit(mpt)
+		account.Root = m.commit(mpt, account.Root)
 		delete(nextState, "storage")
 	}
 	if len(nextState) > 0 {
@@ -200,7 +200,7 @@ func encodeToRlp(bytes []byte) []byte {
 	return encoded
 }
 
-func (m *migrator) commit(mpt *trie.StateTrie) common.Hash {
+func (m *migrator) commit(mpt *trie.StateTrie, parentHash common.Hash) common.Hash {
 	root, set := must2(mpt.Commit(true))
 	set.ForEachWithOrder(func(path string, n *trienode.Node) {
 		// 혹시라도 keccakhash 가 poseidon 와 충돌하는 경우, 그냥 write 할 경우 데이터 소실이 발생함.
@@ -210,13 +210,14 @@ func (m *migrator) commit(mpt *trie.StateTrie) common.Hash {
 			return
 		}
 		if node, err := zk.NewTreeNodeFromBlob(data); err == nil {
-			panic(fmt.Sprintf("Hash collision detected: %v %v", n.Hash.Hex(), node))
+			panic(fmt.Sprintf("Hash collision detected: hashKey: %v, key: %v, value: %v, zkNode: %v", n.Hash.Bytes(), path, data, node))
 		}
 	})
-	must(m.mptdb.Update(root, types.EmptyRootHash, 0, trienode.NewWithNodeSet(set), nil))
+	must(m.mptdb.Update(root, parentHash, 0, trienode.NewWithNodeSet(set), nil))
 	must(m.mptdb.Commit(root, false))
 	return root
 }
+
 type migrationRoot struct {
 	Hash   common.Hash `json:"hash"`
 	Number uint64      `json:"number"`
