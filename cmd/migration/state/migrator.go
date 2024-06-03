@@ -52,11 +52,11 @@ func (m *migrator) start() {
 		}
 	}
 	if root == nil {
-		root = m.migrateAccount()
+		root = m.migrateAccount() // head block 을 기준으로 전체 마이그레이션 시작 (오래걸림. mainnet 기준 4시간 이상)
 		must(m.db.Put([]byte("migration-root"), must1(json.Marshal(root))))
 	}
 	for {
-		if nextRoot := m.applyNewStateTransition(*root); nextRoot == nil {
+		if nextRoot := m.applyNewStateTransition(*root); nextRoot == nil { // 상태 변경된 account, storage 추가 반영
 			time.Sleep(2 * time.Second)
 		} else {
 			must(m.db.Put([]byte("migration-root"), must1(json.Marshal(nextRoot))))
@@ -70,7 +70,7 @@ func (m *migrator) migrateAccount() *migrationRoot {
 	fmt.Println("start migration at account root.", header.Root, "block number", header.Number)
 
 	status := newStatus()
-	mpt := m.newMPT(trie.TrieID(types.EmptyRootHash))
+	mpt := m.newMPT(trie.TrieID(types.EmptyRootHash)) // 이전 mpt 상태가 없기 때문에 EmptyRootHash 로 시작
 	for it := m.openZkIterator(header.Root); it.Next(false); {
 		if !it.Leaf() {
 			continue
@@ -108,7 +108,7 @@ func (m *migrator) migrateStorage(
 		}
 		slot, err := m.readPreimage(it.LeafKey())
 		if err != nil {
-			if address.Hex() == "0x4200000000000000000000000000000000000070" {
+			if address.Hex() == "0x4200000000000000000000000000000000000070" { // devnet 으로 띄운 경우, 없는 경우가 존재해서 임시로 회피 로직 추가. mainnet 에서 돌릴시 삭제 필요
 				fmt.Println("contract", address.Hex(), "slot migration failed. ignore", it.LeafKey())
 				continue
 			} else {
@@ -128,6 +128,8 @@ func (m *migrator) checkHashCollision(t *trie.StateTrie) {
 		if !it.Leaf() {
 			continue
 		}
+		// 혹시라도 keccakhash 가 poseidon 와 충돌하는 경우, 그냥 write 할 경우 데이터 소실이 발생함.
+		// 만약 충돌이 발생하면 그 때 해결책을 찾아볼것...
 		data, _ := m.db.Get(it.Hash().Bytes())
 		if len(data) == 0 {
 			continue
