@@ -3,6 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math/big"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -14,9 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/zk"
-	"math/big"
-	"strings"
-	"time"
 )
 
 var (
@@ -167,7 +168,8 @@ func (m *stateMigrator) readPreimage(key []byte) []byte {
 	if preimage := m.zkdb.Preimage(keyHash); common.BytesToHash(zk.MustNewSecureHash(preimage).Bytes()).Hex() == keyHash.Hex() {
 		return preimage
 	}
-	panic(fmt.Sprintf("%v preimage does not exist.", keyHash.Hex()))
+	log.Crit("preimage does not exist", "hash", keyHash.Hex())
+	return []byte{}
 }
 
 type MigrationResult struct {
@@ -245,9 +247,9 @@ func (m *stateMigrator) migrateHeadAndGenesis(stateRoot common.Hash) (*Migration
 		Bloom:       types.Bloom{},
 		Difficulty:  common.Big0,
 		Number:      new(big.Int).Add(header.Number, common.Big1),
-		GasLimit:    (uint64)(L2GenesisBlockGasLimit),
+		GasLimit:    header.GasLimit,
 		GasUsed:     0,
-		Time:        uint64(L2OutputOracleStartingTimestamp),
+		Time:        header.Time + 2,
 		Extra:       BedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},
@@ -276,10 +278,10 @@ func (m *stateMigrator) migrateHeadAndGenesis(stateRoot common.Hash) (*Migration
 	}
 
 	// If we're not actually writing this to disk, then we're done.
-	//if !commit {
+	// if !commit {
 	//	log.Info("Dry run complete")
 	//	return res, nil
-	//}
+	// }
 
 	// Otherwise we need to write the changes to disk. First we commit the state changes.
 	log.Info("Committing trie DB")

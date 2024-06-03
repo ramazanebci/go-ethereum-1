@@ -357,7 +357,7 @@ type ChainConfig struct {
 	Clique *CliqueConfig `json:"clique,omitempty"`
 
 	// Optimism config, nil if not active
-	Optimism *OptimismConfig `json:"kroma,omitempty"`
+	Optimism *OptimismConfig `json:"optimism,omitempty"`
 
 	// Kroma config, nil if not active
 	Kroma *KromaConfig `json:"kroma,omitempty"`

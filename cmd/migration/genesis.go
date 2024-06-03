@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -18,12 +19,13 @@ func readGenesisAlloc(db ethdb.Database) (map[common.Hash]common.Address, map[co
 	genesisStorage := make(map[common.Hash][]byte)
 
 	for addr, account := range genesis.Alloc {
-		if account.Storage != nil && len(account.Storage) > 0 {
-			hash := common.BytesToHash(zk.MustNewSecureHash(addr.Bytes()).Bytes())
-			genesisAccount[hash] = addr
+		hash := common.BytesToHash(zk.MustNewSecureHash(addr.Bytes()).Bytes())
+		genesisAccount[hash] = addr
 
-			for key, val := range account.Storage {
-				genesisStorage[key] = val.Bytes()
+		if account.Storage != nil {
+			for key, _ := range account.Storage {
+				hash = common.BytesToHash(zk.MustNewSecureHash(key.Bytes()).Bytes())
+				genesisStorage[hash] = key.Bytes()
 			}
 		}
 	}

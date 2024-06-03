@@ -12,8 +12,6 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 	"os"
 	"path/filepath"
-	"sort"
-
 	// Force-load the tracer engines to trigger registration
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
@@ -26,8 +24,6 @@ var app = flags.NewApp("the go-ethereum command line interface")
 func init() {
 	// Initialize the CLI app and start Geth
 	app.Action = migrate
-	sort.Sort(cli.CommandsByName(app.Commands))
-
 	app.Flags = flags.Merge(
 		utils.DatabaseFlags,
 	)
