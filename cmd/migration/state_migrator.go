@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/zk"
@@ -135,7 +136,7 @@ func (m *stateMigrator) migrateStorage(
 			continue
 		}
 		slot := m.readPreimage(zkStorageIt.LeafKey())
-		if err := mpt.UpdateStorage(common.Address{}, slot, zkStorageIt.LeafBlob()); err != nil {
+		if err := mpt.UpdateStorage(common.Address{}, slot, encodeToRlp(zkStorageIt.LeafBlob())); err != nil {
 			return common.Hash{}, err
 		}
 		status.emitLog(false, "contract", address.Hex(), "index", common.BytesToHash(zkStorageIt.LeafKey()).Hex())
@@ -238,22 +239,26 @@ func (m *stateMigrator) migrateHeadAndGenesis(stateRoot common.Hash) (*Migration
 
 	// Create the header for the Bedrock transition block.
 	bedrockHeader := &types.Header{
-		ParentHash:  header.Hash(),
-		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    params.KromaProtocolVault,
-		Root:        newRoot,
-		TxHash:      types.EmptyRootHash,
-		ReceiptHash: types.EmptyRootHash,
-		Bloom:       types.Bloom{},
-		Difficulty:  common.Big0,
-		Number:      new(big.Int).Add(header.Number, common.Big1),
-		GasLimit:    header.GasLimit,
-		GasUsed:     0,
-		Time:        header.Time + 2,
-		Extra:       BedrockTransitionBlockExtraData,
-		MixDigest:   common.Hash{},
-		Nonce:       types.BlockNonce{},
-		BaseFee:     big.NewInt(InitialBaseFee),
+		ParentHash:       header.Hash(),
+		UncleHash:        types.EmptyUncleHash,
+		Coinbase:         params.KromaProtocolVault,
+		Root:             newRoot,
+		TxHash:           types.EmptyRootHash,
+		ReceiptHash:      types.EmptyRootHash,
+		Bloom:            types.Bloom{},
+		Difficulty:       common.Big0,
+		Number:           new(big.Int).Add(header.Number, common.Big1),
+		GasLimit:         header.GasLimit,
+		GasUsed:          0,
+		Time:             header.Time + 2,
+		Extra:            BedrockTransitionBlockExtraData,
+		MixDigest:        common.Hash{},
+		Nonce:            types.BlockNonce{},
+		BaseFee:          big.NewInt(InitialBaseFee),
+		WithdrawalsHash:  header.WithdrawalsHash,
+		BlobGasUsed:      header.BlobGasUsed,
+		ExcessBlobGas:    header.ExcessBlobGas,
+		ParentBeaconRoot: header.ParentBeaconRoot,
 	}
 
 	// Create the Bedrock transition block from the header. Note that there are no transactions,
@@ -384,4 +389,10 @@ func openZkIterator(db *trie.Database, root common.Hash) (trie.NodeIterator, err
 		return nil, err
 	}
 	return tr.NodeIterator(nil)
+}
+
+func encodeToRlp(bytes []byte) []byte {
+	trimmed := common.TrimLeftZeroes(common.BytesToHash(bytes).Bytes())
+	encoded, _ := rlp.EncodeToBytes(trimmed)
+	return encoded
 }
